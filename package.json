@@ -1,37 +1,25 @@
 {
   "name": "web3-digital-product-passport-sdk",
   "version": "1.0.0",
-  "description": "Library for interaction with Digital Product Passports on Public Blockchains",
-  "main": "dist/index.js",
-  "scripts": {
-    "build": "tsc",
-    "test": "jest"
+  "description": "SDK for interacting with Digital Product Passport smart contracts using web3",
+  "main": "index.ts",
+  "directories": {
+    "test": "./tests"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/DigitalProductPassport/web3-digital-product-passport-sdk.git"
-  },
-  "keywords": [
-    "Digital",
-    "Product",
-    "Passports",
-    "SDK"
-  ],
-  "author": "DigitalProductPassport",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/DigitalProductPassport/web3-digital-product-passport-sdk/issues"
-  },
-  "homepage": "https://github.com/DigitalProductPassport/web3-digital-product-passport-sdk#readme",
   "devDependencies": {
-    "@digitalproductpassport/smartcontracts": "^1.0.2",
-    "@types/jest": "^27.4.1",
-    "jest": "^27.4.5",
-    "ts-jest": "^27.1.1",
-    "typescript": "^4.5.4"
+    "@digitalproductpassport/smartcontracts": "^1.0.3",
+    "@types/chai": "^4.3.16",
+    "@types/mocha": "^10.0.7",
+    "@types/node": "^20.14.10",
+    "chai": "^5.1.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.3",
+    "web3": "^1.5.3"
   },
-  "dependencies": {
-    "ethers": "^5.7.2",
-    "@digitalproductpassport/smartcontracts": "^1.0.2"
-  }
+  "scripts": {
+    "test": "tsc && ts-node ./tests/DigitalProductPassport.test.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }

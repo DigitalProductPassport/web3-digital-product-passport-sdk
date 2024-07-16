@@ -1,1 +1,2 @@
-export * from './DigitalProductPassport';
+export * from './DigitalProductPassport'; 
+export * from './config';
