@@ -6,6 +6,10 @@
   "directories": {
     "test": "tests"
   },
+  "dependencies": {
+    "web3": "^1.7.0",
+    "typescript": "^4.7.4"
+  },
   "devDependencies": {
     "@digitalproductpassport/smartcontracts": "^1.0.3",
     "@types/chai": "^4.3.16",
@@ -14,7 +18,8 @@
     "chai": "^5.1.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.3",
-    "web3": "^1.5.3"
+    "web3": "^1.5.3",
+    "mocha": "^10.1.0"
   },
   "scripts": {
     "test": "tsc && ts-node ./tests/DigitalProductPassport.test.ts"

@@ -21,7 +21,7 @@ interface ProductDetails {
 class DigitalProductPassport {
   private web3: Web3;
   private account: string;
-  private productPassportContract: Web3['eth']['Contract'] | undefined;
+  private productPassportContract!: Web3['eth']['Contract']; 
 
   constructor(contractAddress?: string) {
     const providerUrl = config.getProviderUrl();
@@ -32,13 +32,27 @@ class DigitalProductPassport {
     this.account = account.address;
 
     if (contractAddress) {
-      // Initialize contract properly
       this.productPassportContract = new this.web3.eth.Contract(
-        ProductPassportABI as AbiItem[], // Type assertion to AbiItem[]
-        contractAddress,
-        { /* Additional options if needed */ }
-      ) as unknown as Web3['eth']['Contract']; // Use unknown then as Web3['eth']['Contract']
+        ProductPassportABI.abi as AbiItem[],
+        contractAddress
+      );
+    } else {
+      this.deployNewContract();
     }
+  }
+
+  private async deployNewContract() {
+    const contract = new this.web3.eth.Contract(ProductPassportABI.abi as AbiItem[]);
+    const deployOptions = {
+      data: ProductPassportABI.bytecode,
+      arguments: []
+    };
+    const newContractInstance = await contract.deploy(deployOptions).send({
+      from: this.account,
+      gas: 3000000
+    });
+    this.productPassportContract = newContractInstance;
+    console.log("Deployed new contract at:", newContractInstance.options.address);
   }
 
   async createProductPassport(productDetails: ProductDetails): Promise<void> {
