@@ -1,6 +1,6 @@
 {
   "name": "@digitalproductpassport/solidity-sdk",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "SDK for interacting with Digital Product Passport smart contracts using web3",
   "main": "index.ts",
   "directories": {
@@ -24,6 +24,7 @@
     "@types/node": "^20.14.11",
     "@types/sinon": "^17.0.3",
     "chai": "^5.1.1",
+    "jsdoc": "^4.0.3",
     "mocha": "^10.7.0",
     "sinon": "^18.0.0",
     "sinon-chai": "^3.7.0",
@@ -33,7 +34,7 @@
     "web3": "^1.5.3"
   },
   "scripts": {
-    "test": "tsc && ts-node ./tests/DigitalProductPassport.test.ts"
+    "test": "tsc && ts-node ./tests/*.ts"
   },
   "keywords": [],
   "author": "Luthiano Trarbach",

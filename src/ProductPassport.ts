@@ -3,18 +3,28 @@ import { ProductPassport__factory, ProductDetails__factory } from '@digitalprodu
 import { ProductPassport as ProductPassportType } from '@digitalproductpassport/smartcontracts/types/contracts/ProductPassport';
 import config from './config';
 
+/**
+ * Class representing a ProductPassports.
+ * Provides functionality to deploy, manage, and interact with the Product Passport smart contract.
+ */
 class ProductPassports {
     private provider: ethers.JsonRpcProvider;
     private signer: ethers.Signer;
     private gweiBid: number;
     private productPassportContract: ProductPassportType | null;
 
+    /**
+     * Creates an instance of ProductPassports.
+     * @param provider - An instance of ethers.JsonRpcProvider.
+     * @param privateKey - The private key of the signer.
+     * @param gweiBid - The gas bid in Gwei.
+     */
     constructor(provider: ethers.JsonRpcProvider, privateKey: string, gweiBid: number) {
         this.provider = provider;
         this.signer = new ethers.Wallet(privateKey, provider);
         this.gweiBid = gweiBid;
         const productPassportAddress = config.getProductPassportAddress();
-      
+
         if (productPassportAddress && ethers.isAddress(productPassportAddress)) {
             this.productPassportContract = ProductPassport__factory.connect(productPassportAddress, this.signer);
         } else {
@@ -22,6 +32,11 @@ class ProductPassports {
         }
     }
 
+    /**
+     * Deploys a new ProductPassport contract.
+     * @param initialOwner - The address of the initial owner of the contract.
+     * @returns The address of the deployed ProductPassport contract.
+     */
     async deployProductPassport(initialOwner?: string): Promise<string> {
         console.info(`Deploying ProductPassport contract from ${await this.signer.getAddress()}`);
 
@@ -35,6 +50,12 @@ class ProductPassports {
         return address;
     }
 
+    /**
+     * Retrieves the product passport for a given product ID.
+     * @param productId - The ID of the product.
+     * @returns The product passport information.
+     * @throws Error if the contract address is not initialized or retrieval fails.
+     */
     async getProductPassport(productId: number): Promise<any> {
         if (!this.productPassportContract) {
             throw new Error('ProductPassport contract address is not initialized.');
@@ -50,6 +71,14 @@ class ProductPassports {
         }
     }
 
+    /**
+     * Sets the product passport information for a given contract address and product ID.
+     * @param contractAddress - The address of the ProductDetails contract.
+     * @param productId - The ID of the product.
+     * @param productDetails - An object containing product details.
+     * @returns The transaction receipt.
+     * @throws Error if the contract address is not initialized or setting data fails.
+     */
     async setProductPassportInfo(contractAddress: string, productId: string, productDetails: any): Promise<any> {
         if (!this.productPassportContract) {
             throw new Error('ProductPassport contract address is not initialized.');
@@ -76,6 +105,12 @@ class ProductPassports {
         }
     }
 
+    /**
+     * Retrieves product information for a given product ID.
+     * @param productId - The ID of the product.
+     * @returns The product information.
+     * @throws Error if the contract address is not initialized or retrieval fails.
+     */
     async getProduct(productId: string): Promise<any> {
         if (!this.productPassportContract) {
             throw new Error('ProductPassport contract address is not initialized.');
@@ -91,6 +126,13 @@ class ProductPassports {
         }
     }
 
+    /**
+     * Sets the product data for a given product ID.
+     * @param productId - The ID of the product.
+     * @param productData - An object containing product data.
+     * @returns The transaction receipt.
+     * @throws Error if the contract address is not initialized or setting data fails.
+     */
     async setProductData(productId: number, productData: any): Promise<any> {
         if (!this.productPassportContract) {
             throw new Error('ProductPassport contract address is not initialized.');
@@ -119,6 +161,12 @@ class ProductPassports {
         }
     }
 
+    /**
+     * Retrieves the product data for a given product ID.
+     * @param productId - The ID of the product.
+     * @returns The product data.
+     * @throws Error if the contract address is not initialized or retrieval fails.
+     */
     async getProductData(productId: number): Promise<any> {
         if (!this.productPassportContract) {
             throw new Error('ProductPassport contract address is not initialized.');
@@ -134,6 +182,13 @@ class ProductPassports {
         }
     }
 
+    /**
+     * Authorizes an entity to interact with the ProductPassport contract.
+     * @param contractAddress - The address of the ProductPassport contract.
+     * @param entityAddress - The address of the entity to be authorized.
+     * @returns The transaction receipt.
+     * @throws Error if the contract address is not initialized or authorization fails.
+     */
     async authorizeEntity(contractAddress: string, entityAddress: string): Promise<any> {
         if (!this.productPassportContract) {
             throw new Error('ProductPassport contract address is not initialized.');
