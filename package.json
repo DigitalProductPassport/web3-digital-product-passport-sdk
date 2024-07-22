@@ -1,6 +1,6 @@
 {
   "name": "@digitalproductpassport/solidity-sdk",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "SDK for interacting with Digital Product Passport smart contracts using web3",
   "main": "index.ts",
   "directories": {
