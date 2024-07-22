@@ -1,7 +1,7 @@
-const fs = require('fs');
-const path = require('path');
-const dotenv = require('dotenv');
-
+import fs from 'fs';
+import path from 'path';
+import dotenv from 'dotenv';
+import { ethers } from 'ethers';
 dotenv.config();
 
 interface ProductDetails {
@@ -23,7 +23,12 @@ interface Config {
   loadProductDetails: (filePath: string) => ProductDetails;
   getProviderUrl: () => string;
   getPrivateKey: () => string;
+  getPinataApiKey: () => string;
+  getPinataSecretApiKey: () => string;
+  getGasAmount: () => string;
+  getGweiBid: () => string;
   getProductPassportAddress: () => string;
+  getBatchContractAddress: () => string;
 }
 
 const loadProductDetails = (filePath: string = process.env.PRODUCT_DETAILS_FILE || 'product-details.json'): ProductDetails => {
@@ -46,14 +51,39 @@ const getPrivateKey = (): string => {
 };
 
 const getProductPassportAddress = (): string => {
-  return process.env.PRODUCT_PASSPORT_ADDRESS || ''; // Default to empty string if not provided
+  return process.env.PRODUCT_PASSPORT_ADDRESS || ''; 
 };
 
-const config: Config = {
+const getBatchContractAddress = (): string => {
+  return process.env.PRODUCT_PASSPORT_BATCH_ADDRESS || ''; 
+};
+
+const getPinataApiKey = (): string => {
+  return process.env.PINATA_API_KEY || '';
+};
+
+const getPinataSecretApiKey = (): string => {
+  return process.env.PINATA_SECRET_API_KEY || '';
+};
+
+const getGasAmount = (): string => {
+  return process.env.GAS_AMOUNT || "254362";
+};
+
+const getGweiBid = (): string => {
+  return process.env.GWEI_BID || "3";
+};
+
+const Config: Config = {
   loadProductDetails,
   getProviderUrl,
   getPrivateKey,
-  getProductPassportAddress
+  getPinataApiKey,
+  getPinataSecretApiKey,
+  getGasAmount,
+  getGweiBid,
+  getProductPassportAddress,
+  getBatchContractAddress,
 };
 
-export default config;
+export default Config;
