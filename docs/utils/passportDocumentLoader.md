@@ -25,10 +25,8 @@ Your configuration JSON file should specify:
 
 ### Importing
 
-To use the document loader function, import it from the `utils` folder:
-
 ```typescript
-import { DocumentLoaderToIPFS } from './utils/passportDocumentsLoader';
+import { DocumentLoaderToIPFS } from '@digitalproductpassport/solidity-sdk';
 ```
 
 ### `DocumentLoaderToIPFS`
@@ -41,7 +39,7 @@ Loads product configuration from a JSON file, uploads JSON data and associated f
 
 #### Returns
 
-- A promise that resolves to an object containing updated product details with IPFS CIDs.
+- A promise that resolves to `{ productId, description, manuals, specifications }`, where `manuals` and `specifications` are the IPFS hashes of the uploaded files. Pass them to `ProductPassports.createProduct`. Files that fail to upload are logged and skipped.
 
 #### Example
 
@@ -50,7 +48,10 @@ const configPath = 'path/to/your/config.json';
 
 DocumentLoaderToIPFS(configPath)
   .then((updatedProductDetails) => {
-    console.log('Product details updated with IPFS CIDs:', updatedProductDetails);
+    console.log(
+      'Product details updated with IPFS CIDs:',
+      updatedProductDetails,
+    );
   })
   .catch((error) => {
     console.error('Failed to update product passport with IPFS CIDs:', error);

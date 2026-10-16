@@ -1,209 +1,167 @@
 import { ethers } from 'ethers';
-import { ProductPassport__factory, ProductDetails__factory } from '@digitalproductpassport/smartcontracts/types/factories/contracts';
-import { ProductPassport as ProductPassportType } from '@digitalproductpassport/smartcontracts/types/contracts/ProductPassport';
-import config from './config';
+import { ProductPassport__factory } from './contracts/factories/ProductPassport__factory.js';
+import type { ProductPassport as ProductPassportContract } from './contracts/ProductPassport.js';
+import {
+  ContractClient,
+  type ContractClientOptions,
+} from './contractClient.js';
+import {
+  toGeoLocation,
+  toProductData,
+  type ProductData,
+  type ProductDetails,
+  type ProductUpdate,
+} from './types.js';
+import config from './config.js';
 
 /**
- * Class representing a ProductPassports.
- * Provides functionality to deploy, manage, and interact with the Product Passport smart contract.
+ * Client for the ProductPassport contract.
+ * Provides functionality to deploy, manage, and read product passports.
+ *
+ * Every product belongs to a complex registered in the ComplexManagement contract,
+ * which must be linked with `setComplexManagement`.
  */
-class ProductPassports {
-    private provider: ethers.JsonRpcProvider;
-    private signer: ethers.Signer;
-    private gweiBid: number;
-    private productPassportContract: ProductPassportType | null;
+export class ProductPassports extends ContractClient<ProductPassportContract> {
+  /**
+   * @param signer - The signer used to send transactions.
+   * @param options - Contract address (defaults to `PRODUCT_PASSPORT_ADDRESS`), gas price and logger.
+   */
+  constructor(signer: ethers.Signer, options: ContractClientOptions = {}) {
+    super(
+      'ProductPassport',
+      ProductPassport__factory.connect,
+      signer,
+      options,
+      config.getProductPassportAddress(),
+    );
+  }
 
-    /**
-     * Creates an instance of ProductPassports.
-     * @param provider - An instance of ethers.JsonRpcProvider.
-     * @param privateKey - The private key of the signer.
-     * @param gweiBid - The gas bid in Gwei.
-     */
-    constructor(provider: ethers.JsonRpcProvider, privateKey: string, gweiBid: number) {
-        this.provider = provider;
-        this.signer = new ethers.Wallet(privateKey, provider);
-        this.gweiBid = gweiBid;
-        const productPassportAddress = config.getProductPassportAddress();
+  /**
+   * Deploys a new ProductPassport contract and connects the client to it.
+   * @param initialOwner - The contract owner. Defaults to the signer address.
+   * @returns The address of the deployed contract.
+   */
+  async deployProductPassport(initialOwner?: string): Promise<string> {
+    return this.deployWith(
+      (owner, overrides) =>
+        new ProductPassport__factory(this.signer).deploy(owner, overrides),
+      initialOwner,
+    );
+  }
 
-        if (productPassportAddress && ethers.isAddress(productPassportAddress)) {
-            this.productPassportContract = ProductPassport__factory.connect(productPassportAddress, this.signer);
-        } else {
-            this.productPassportContract = null;
-        }
-    }
+  /**
+   * Links the ComplexManagement contract used to validate product complexes.
+   * @param complexManagementAddress - The ComplexManagement contract address.
+   */
+  async setComplexManagement(
+    complexManagementAddress: string,
+  ): Promise<ethers.ContractTransactionReceipt> {
+    return this.write('set complex management', (c, overrides) =>
+      c.setComplexManagement(complexManagementAddress, overrides),
+    );
+  }
 
-    /**
-     * Deploys a new ProductPassport contract.
-     * @param initialOwner - The address of the initial owner of the contract.
-     * @returns The address of the deployed ProductPassport contract.
-     */
-    async deployProductPassport(initialOwner?: string): Promise<string> {
-        console.info(`Deploying ProductPassport contract from ${await this.signer.getAddress()}`);
+  /**
+   * @returns The address of the linked ComplexManagement contract (the zero address if not set).
+   */
+  async getComplexManagement(): Promise<string> {
+    return this.read('get complex management', (c) => c.complexManagement());
+  }
 
-        const productPassportFactory = new ProductPassport__factory(this.signer);
-        const contract = await productPassportFactory.deploy(initialOwner || await this.signer.getAddress());
-        await contract.deploymentTransaction();
-        await contract.waitForDeployment();
-        const address = await contract.getAddress();
+  /**
+   * Creates a product passport.
+   * @param productId - The product ID. Must be unique.
+   * @param product - The product data. `complexId` must reference an existing complex and
+   *                  `materialComposition` must not be empty.
+   */
+  async createProduct(
+    productId: ethers.BigNumberish,
+    product: ProductData,
+  ): Promise<ethers.ContractTransactionReceipt> {
+    return this.write('create product', (c, overrides) =>
+      c.createProduct(
+        productId,
+        product.description,
+        product.manuals,
+        product.specifications,
+        product.batchNumber,
+        product.productionDate,
+        product.expiryDate,
+        product.certifications,
+        product.warrantyInfo,
+        product.materialComposition,
+        product.complexId,
+        overrides,
+      ),
+    );
+  }
 
-        console.info(`ProductPassport contract deployed at address: ${address}`);
-        return address;
-    }
+  /**
+   * Updates an existing product passport. The product complex is not changed.
+   * @param productId - The product ID.
+   * @param product - The new product data.
+   */
+  async updateProduct(
+    productId: ethers.BigNumberish,
+    product: ProductUpdate,
+  ): Promise<ethers.ContractTransactionReceipt> {
+    return this.write('update product', (c, overrides) =>
+      c.updateProduct(
+        productId,
+        product.description,
+        product.manuals,
+        product.specifications,
+        product.batchNumber,
+        product.productionDate,
+        product.expiryDate,
+        product.certifications,
+        product.warrantyInfo,
+        product.materialComposition,
+        overrides,
+      ),
+    );
+  }
 
-    /**
-     * Retrieves the product passport for a given product ID.
-     * @param productId - The ID of the product.
-     * @returns The product passport information.
-     * @throws Error if the contract address is not initialized or retrieval fails.
-     */
-    async getProductPassport(productId: number): Promise<any> {
-        if (!this.productPassportContract) {
-            throw new Error('ProductPassport contract address is not initialized.');
-        }
+  /**
+   * Removes a product passport.
+   * @param productId - The product ID.
+   */
+  async removeProduct(
+    productId: ethers.BigNumberish,
+  ): Promise<ethers.ContractTransactionReceipt> {
+    return this.write('remove product', (c, overrides) =>
+      c.removeProduct(productId, overrides),
+    );
+  }
 
-        try {
-            const passport = await this.productPassportContract.getProduct(productId);
-            console.info("Retrieved product passport:", passport);
-            return passport;
-        } catch (error: any) {
-            console.error("Error getting product passport:", error);
-            throw new Error(`Failed to retrieve product passport: ${error.message}`);
-        }
-    }
+  /**
+   * Retrieves a product passport together with the location of its complex.
+   * @param productId - The product ID.
+   */
+  async getProductDetails(
+    productId: ethers.BigNumberish,
+  ): Promise<ProductDetails> {
+    return this.read('retrieve product', async (c) => {
+      const [product, origin] = await c.getProductDetails(productId);
+      return { product: toProductData(product), origin: toGeoLocation(origin) };
+    });
+  }
 
-    /**
-     * Sets the product passport information for a given contract address and product ID.
-     * @param contractAddress - The address of the ProductDetails contract.
-     * @param productId - The ID of the product.
-     * @param productDetails - An object containing product details.
-     * @returns The transaction receipt.
-     * @throws Error if the contract address is not initialized or setting data fails.
-     */
-    async setProductPassportInfo(contractAddress: string, productId: string, productDetails: any): Promise<any> {
-        if (!this.productPassportContract) {
-            throw new Error('ProductPassport contract address is not initialized.');
-        }
+  /**
+   * Retrieves the data of a product passport.
+   * @param productId - The product ID.
+   */
+  async getProduct(productId: ethers.BigNumberish): Promise<ProductData> {
+    return (await this.getProductDetails(productId)).product;
+  }
 
-        const productDetailsContract = ProductDetails__factory.connect(contractAddress, this.signer);
-
-        try {
-            const tx = await productDetailsContract.setProduct(
-                productId,
-                productDetails.uid,
-                productDetails.gtin,
-                productDetails.taricCode,
-                productDetails.manufacturerInfo,
-                productDetails.consumerInfo,
-                productDetails.endOfLifeInfo
-            );
-            await tx.wait();
-            console.info(`Product set transaction receipt: ${tx.hash}`);
-            return tx;
-        } catch (error: any) {
-            console.error(`Failed to set product: ${error.message}`);
-            throw new Error(`Failed to set product: ${error.message}`);
-        }
-    }
-
-    /**
-     * Retrieves product information for a given product ID.
-     * @param productId - The ID of the product.
-     * @returns The product information.
-     * @throws Error if the contract address is not initialized or retrieval fails.
-     */
-    async getProduct(productId: string): Promise<any> {
-        if (!this.productPassportContract) {
-            throw new Error('ProductPassport contract address is not initialized.');
-        }
-
-        try {
-            const product = await this.productPassportContract.getProduct(productId);
-            console.info(`Product retrieved: ${product}`);
-            return product;
-        } catch (error: any) {
-            console.error(`Failed to retrieve product: ${error.message}`);
-            throw new Error(`Failed to retrieve product: ${error.message}`);
-        }
-    }
-
-    /**
-     * Sets the product data for a given product ID.
-     * @param productId - The ID of the product.
-     * @param productData - An object containing product data.
-     * @returns The transaction receipt.
-     * @throws Error if the contract address is not initialized or setting data fails.
-     */
-    async setProductData(productId: number, productData: any): Promise<any> {
-        if (!this.productPassportContract) {
-            throw new Error('ProductPassport contract address is not initialized.');
-        }
-
-        try {
-            const tx = await this.productPassportContract.setProductData(
-                productId,
-                productData.description,
-                productData.manuals,
-                productData.specifications,
-                productData.batchNumber,
-                productData.productionDate,
-                productData.expiryDate,
-                productData.certifications,
-                productData.warrantyInfo,
-                productData.materialComposition,
-                productData.complianceInfo
-            );
-            await tx.wait();
-            console.info(`Product data set transaction receipt: ${tx.hash}`);
-            return tx;
-        } catch (error: any) {
-            console.error(`Failed to set product data: ${error.message}`);
-            throw new Error(`Failed to set product data: ${error.message}`);
-        }
-    }
-
-    /**
-     * Retrieves the product data for a given product ID.
-     * @param productId - The ID of the product.
-     * @returns The product data.
-     * @throws Error if the contract address is not initialized or retrieval fails.
-     */
-    async getProductData(productId: number): Promise<any> {
-        if (!this.productPassportContract) {
-            throw new Error('ProductPassport contract address is not initialized.');
-        }
-
-        try {
-            const productData = await this.productPassportContract.getProductData(productId);
-            console.info(`Product data retrieved: ${productData}`);
-            return productData;
-        } catch (error: any) {
-            console.error(`Failed to retrieve product data: ${error.message}`);
-            throw new Error(`Failed to retrieve product data: ${error.message}`);
-        }
-    }
-
-    /**
-     * Authorizes an entity to interact with the ProductPassport contract.
-     * @param contractAddress - The address of the ProductPassport contract.
-     * @param entityAddress - The address of the entity to be authorized.
-     * @returns The transaction receipt.
-     * @throws Error if the contract address is not initialized or authorization fails.
-     */
-    async authorizeEntity(contractAddress: string, entityAddress: string): Promise<any> {
-        if (!this.productPassportContract) {
-            throw new Error('ProductPassport contract address is not initialized.');
-        }
-
-        try {
-            const tx = await this.productPassportContract.authorizeEntity(entityAddress);
-            await tx.wait();
-            console.info(`Entity authorized transaction receipt: ${tx.hash}`);
-            return tx;
-        } catch (error: any) {
-            console.error(`Failed to authorize entity: ${error.message}`);
-            throw new Error(`Failed to authorize entity: ${error.message}`);
-        }
-    }
+  /**
+   * Checks whether a product passport exists.
+   * @param productId - The product ID.
+   */
+  async productExists(productId: ethers.BigNumberish): Promise<boolean> {
+    return this.read('check product', (c) => c.productExists(productId));
+  }
 }
 
 export default ProductPassports;

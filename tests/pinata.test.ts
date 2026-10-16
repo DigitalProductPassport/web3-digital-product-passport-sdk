@@ -1,75 +1,158 @@
 import { expect } from 'chai';
-import sinon from 'sinon';
 import fs from 'fs';
-import PinataClient from "@pinata/sdk"
-import * as pinataModule from '../src/utils/pinata';
-import Config from '../src/config';
+import os from 'os';
+import path from 'path';
+import {
+  DocumentLoaderToIPFS,
+  setPinataClient,
+  uploadFileToPinata,
+  uploadJSONToPinata,
+  type PinataUploader,
+} from '../src/index.js';
+import { expectRejection } from './fixtures.js';
+
+type PinResponse = Awaited<ReturnType<PinataUploader['pinJSONToIPFS']>>;
+const pinned = (hash: string) =>
+  ({ IpfsHash: hash, PinSize: 1, Timestamp: '' }) as PinResponse;
+
+/**
+ * Pinata double that records uploads and returns a hash per upload.
+ */
+const fakePinata = (failFiles: string[] = []) => {
+  const uploads: string[] = [];
+  const client: PinataUploader = {
+    pinJSONToIPFS: async () => {
+      uploads.push('json');
+      return pinned('QmJsonHash');
+    },
+    pinFileToIPFS: async (stream: fs.ReadStream) => {
+      const name = path.basename(String(stream.path));
+      if (failFiles.includes(name)) {
+        throw new Error('Failed to upload file');
+      }
+      uploads.push(name);
+      return pinned(`Qm-${name}`);
+    },
+  };
+  return { client, uploads };
+};
+
+let dir: string;
+
+const writeFile = (name: string, content: string) => {
+  const filePath = path.join(dir, name);
+  fs.writeFileSync(filePath, content);
+  return filePath;
+};
+
+beforeEach(function () {
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dpp-sdk-'));
+});
+
+afterEach(function () {
+  setPinataClient(null);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
 
 describe('Pinata', function () {
-  let pinataStub: sinon.SinonStubbedInstance<PinataClient>;
+  it('uploads JSON and returns the IPFS hash', async function () {
+    setPinataClient(fakePinata().client);
 
-  before(function () {
-    const pinataInstance = new pinataSDK(Config.getPinataApiKey(), Config.getPinataSecretApiKey());
-    pinataStub = sinon.stub(pinataInstance) as unknown as sinon.SinonStubbedInstance<PinataClient>;
+    expect(await uploadJSONToPinata({ key: 'value' })).to.equal('QmJsonHash');
   });
 
-  afterEach(function () {
-    sinon.restore();
+  it('wraps JSON upload errors', async function () {
+    setPinataClient({
+      ...fakePinata().client,
+      pinJSONToIPFS: async () => {
+        throw new Error('Failed to upload JSON');
+      },
+    });
+
+    await expectRejection(
+      uploadJSONToPinata({}),
+      'Error uploading JSON to Pinata: Failed to upload JSON',
+    );
   });
 
-  describe('uploadJSONToPinata', function () {
-    it('should upload JSON data to Pinata and return the IPFS hash', async function () {
-      const jsonData = { key: 'value' };
-      const expectedHash = 'QmTestHash';
+  it('uploads a file and returns the IPFS hash', async function () {
+    setPinataClient(fakePinata().client);
+    const filePath = writeFile('manual.pdf', 'manual');
 
-      pinataStub.pinJSONToIPFS.resolves({ IpfsHash: expectedHash });
-
-      const result = await pinataModule.uploadJSONToPinata(jsonData);
-      expect(result).to.equal(expectedHash);
-      expect(pinataStub.pinJSONToIPFS.calledOnce).to.be.true;
-    });
-
-    it('should throw an error if uploading JSON data fails', async function () {
-      const jsonData = { key: 'value' };
-      const errorMessage = 'Failed to upload JSON';
-
-      pinataStub.pinJSONToIPFS.rejects(new Error(errorMessage));
-
-      try {
-        await pinataModule.uploadJSONToPinata(jsonData);
-      } catch (error: any) {
-        expect(error.message).to.equal(`Error uploading JSON to Pinata: ${errorMessage}`);
-      }
-      expect(pinataStub.pinJSONToIPFS.calledOnce).to.be.true;
-    });
+    expect(await uploadFileToPinata(filePath)).to.equal('Qm-manual.pdf');
   });
 
-  describe('uploadFileToPinata', function () {
-    it('should upload a file to Pinata and return the IPFS hash', async function () {
-      const filePath = 'test.txt';
-      const expectedHash = 'QmTestHash';
+  it('wraps file upload errors', async function () {
+    setPinataClient(fakePinata(['manual.pdf']).client);
+    const filePath = writeFile('manual.pdf', 'manual');
 
-      sinon.stub(fs, 'createReadStream').returns({} as any);
-      pinataStub.pinFileToIPFS.resolves({ IpfsHash: expectedHash });
+    await expectRejection(
+      uploadFileToPinata(filePath),
+      'Error uploading file to Pinata: Failed to upload file',
+    );
+  });
+});
 
-      const result = await pinataModule.uploadFileToPinata(filePath);
-      expect(result).to.equal(expectedHash);
-      expect(pinataStub.pinFileToIPFS.calledOnce).to.be.true;
+describe('DocumentLoaderToIPFS', function () {
+  const writeConfig = () => {
+    const jsonConfigPath = writeFile(
+      'product.json',
+      JSON.stringify({ key: 'value' }),
+    );
+    return writeFile(
+      'config.json',
+      JSON.stringify({
+        productId: '12345',
+        description: 'Example Product',
+        manuals: [
+          writeFile('manual1.pdf', 'm1'),
+          writeFile('manual2.pdf', 'm2'),
+        ],
+        specifications: [writeFile('spec1.pdf', 's1')],
+        jsonConfigPath,
+      }),
+    );
+  };
+
+  it('uploads the product documents and returns their IPFS hashes', async function () {
+    const { client, uploads } = fakePinata();
+    setPinataClient(client);
+
+    const result = await DocumentLoaderToIPFS(writeConfig());
+
+    expect(result).to.deep.equal({
+      productId: '12345',
+      description: 'Example Product',
+      manuals: ['Qm-manual1.pdf', 'Qm-manual2.pdf'],
+      specifications: ['Qm-spec1.pdf'],
+    });
+    expect(uploads).to.deep.equal([
+      'json',
+      'manual1.pdf',
+      'manual2.pdf',
+      'spec1.pdf',
+    ]);
+  });
+
+  it('skips documents that fail to upload', async function () {
+    setPinataClient(fakePinata(['manual1.pdf']).client);
+
+    const result = await DocumentLoaderToIPFS(writeConfig());
+
+    expect(result.manuals).to.deep.equal(['Qm-manual2.pdf']);
+  });
+
+  it('throws if the JSON upload fails', async function () {
+    setPinataClient({
+      ...fakePinata().client,
+      pinJSONToIPFS: async () => {
+        throw new Error('Failed to upload JSON');
+      },
     });
 
-    it('should throw an error if uploading a file fails', async function () {
-      const filePath = 'test.txt';
-      const errorMessage = 'Failed to upload file';
-
-      sinon.stub(fs, 'createReadStream').returns({} as any);
-      pinataStub.pinFileToIPFS.rejects(new Error(errorMessage));
-
-      try {
-        await pinataModule.uploadFileToPinata(filePath);
-      } catch (error: any) {
-        expect(error.message).to.equal(`Error uploading file to Pinata: ${errorMessage}`);
-      }
-      expect(pinataStub.pinFileToIPFS.calledOnce).to.be.true;
-    });
+    await expectRejection(
+      DocumentLoaderToIPFS(writeConfig()),
+      'Error updating product passport with IPFS CIDs: Error uploading JSON to Pinata: Failed to upload JSON',
+    );
   });
 });

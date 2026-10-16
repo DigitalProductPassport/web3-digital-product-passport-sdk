@@ -1,74 +1,99 @@
 # Batch
 
-`Batch` is a TypeScript class for managing batch product passport  contracts on the Ethereum blockchain. This class provides methods to deploy, set, and retrieve batch details from a Batch contract.
+Client for the `IntegratedProductPassportBatch` contract. Each production batch is minted as an ERC-721 token (name `DigitalProductPassport`, symbol `DPP`) whose token ID is the batch ID. The contract stores the batch amount, assembly time and transport details, and tracks the batch's origin and current location.
 
+The contract must be linked to `ProductPassport`, `ComplexManagement` and `Geolocation` (`initializeContracts`). [`deploySystem`](../README.md#deploy-the-full-system) sets this up.
 
-## Usage
-
-### Creating an Instance
+## Creating an instance
 
 ```typescript
-const batch = new Batch(provider, privateKey, gweiBid);
+import { Batch, Config } from '@digitalproductpassport/solidity-sdk';
+
+const batch = new Batch(Config.createSigner(), {
+  address: '0x...', // defaults to PRODUCT_PASSPORT_BATCH_ADDRESS
+});
 ```
 
-### Methods
+## Data types
 
-#### `deployBatch(initialOwner?: string): Promise<string>`
+```typescript
+interface NewBatch {
+  amount: BigNumberish; // must be greater than zero
+  assemblingTime: BigNumberish;
+  transportDetails: string;
+  productId: BigNumberish; // must reference an existing product
+}
 
-Deploys a new Batch contract.
+interface BatchDetails {
+  amount: bigint;
+  assemblingTime: bigint;
+  transportDetails: string;
+  currentGeolocationId: string;
+  originGeolocationId: string;
+}
 
-- **Parameters:**
-  - `initialOwner` (optional): The address of the initial owner of the contract.
-- **Returns:** The address of the deployed Batch contract.
+interface BatchFullDetails {
+  batch: BatchDetails;
+  product: ProductData;
+  complex: Complex;
+  currentLocation: GeoLocation;
+  originLocation: GeoLocation;
+}
+```
 
-#### `setBatch(batchId: string, batchDetails: any): Promise<void>`
+## Methods
 
-Sets the details of a batch in the Batch contract.
+| Method                                                                 | Description                                                                                                               |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `deployBatch(initialOwner?)`                                           | Deploys a new contract, connects the client to it, and returns its address.                                               |
+| `initializeContracts(productPassport, complexManagement, geolocation)` | Links the other contracts. Owner only.                                                                                    |
+| `createBatch(batchId, batch: NewBatch)`                                | Creates a batch and mints its NFT to the contract owner. The origin is the location of the product's complex. Owner only. |
+| `updateBatchLocation(batchId, geolocationId, location?)`               | Moves a batch. See the limitation below. Owner only.                                                                      |
+| `getBatch(batchId)`                                                    | Returns the stored `BatchDetails`. Unknown batches have `amount` 0.                                                       |
+| `getBatchDetails(batchId, productId)`                                  | Returns the batch with its product, complex, current location and origin.                                                 |
+| `setTokenURI(batchId, uri)` / `tokenURI(batchId)`                      | Link the NFT to off-chain metadata, for example an IPFS JSON file.                                                        |
+| `ownerOf(batchId)`                                                     | Returns the NFT holder.                                                                                                   |
+| `owner()` / `transferOwnership(newOwner)`                              | Ownership of the contract.                                                                                                |
+| `getContract()`                                                        | The TypeChain contract, for ERC-721 calls such as `transferFrom` or `approve`.                                            |
 
-- **Parameters:**
-  - `batchId`: The identifier for the batch.
-  - `batchDetails`: An object containing details of the batch.
-- **Throws:** Error if the Batch contract address is not initialized or the transaction fails.
+### Moving a batch
 
-#### `getBatch(batchId: string): Promise<any>`
+`updateBatchLocation` asks the `Geolocation` contract to create the target location when it does not exist. With the standard deployment, `Geolocation` is owned by `ComplexManagement`, so that creation reverts. Move batches to existing locations instead, for example the geolocation of another complex:
 
-Retrieves details of a batch from the Batch contract.
+```typescript
+await complexManagement.addComplex('WAREHOUSE-1', {
+  complexName: 'Sao Paulo Warehouse',
+  complexCountry: 'Brazil',
+  complexAddress: 'Rua Logistica, 50',
+  complexSiteType: 'Warehouse',
+  complexIndustry: 'Logistics',
+  geolocationId: 'GEO-WAREHOUSE-1',
+  latitude: '-23.5505',
+  longitude: '-46.6333',
+  additionalInfo: 'Distribution center',
+});
 
-- **Parameters:**
-  - `batchId`: The identifier for the batch.
-- **Returns:** The details of the batch.
-
-## Configuration
-
-Configure the class using your `.env` file or environment variables. Make sure to include:
-
-- `PROVIDER_URL`
-- `PRIVATE_KEY`
-- `BATCH_CONTRACT_ADDRESS`
+await batch.updateBatchLocation(1, 'GEO-WAREHOUSE-1');
+```
 
 ## Example
 
 ```typescript
-(async () => {
-  try {
-    const batchAddress = await batch.deployBatch();
-    console.log(`Deployed Batch contract at: ${batchAddress}`);
-    
-    await batch.setBatch('Batch001', {
-      productIds: [1, 2, 3],
-      productionDate: '2022-01-01',
-      expiryDate: '2023-01-01',
-      location: 'Test Location'
-    });
-    
-    const batchDetails = await batch.getBatch('Batch001');
-    console.log('Batch Details:', batchDetails);
-  } catch (error) {
-    console.error('Error:', error);
-  }
-})();
+await batch.createBatch(1, {
+  amount: 100,
+  assemblingTime: 3600,
+  transportDetails: 'Truck BR-101',
+  productId: 1,
+});
+await batch.setTokenURI(1, 'ipfs://QmBatchMetadata');
+
+const {
+  batch: details,
+  currentLocation,
+  originLocation,
+} = await batch.getBatchDetails(1, 1);
 ```
 
 ## License
 
-This project is licensed under the MIT License 
+MIT

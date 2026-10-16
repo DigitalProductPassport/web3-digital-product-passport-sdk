@@ -1,3 +1,36 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Environment (keep the example)
 .env
-dist
+.env.*
+!.env.example
+
+# Build output
+dist/
+*.tsbuildinfo
+*.tgz
+
+# Hardhat
+artifacts/
+cache/
+types/
+ignition/deployments/chain-31337/
+
+# Test coverage and caches
+coverage/
+coverage.json
+.nyc_output/
+.eslintcache
+.npm/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

@@ -1,101 +1,92 @@
 # ProductPassports
 
-`ProductPassports` is a TypeScript class for interacting with the Product Passport smart contract on the Ethereum blockchain. This class provides functionality to deploy, manage, and interact with the Product Passport smart contract, including deploying contracts, retrieving product passports, and setting product information.
+Client for the `ProductPassport` contract. A product passport stores the product description, manuals and specifications (usually IPFS hashes), batch number, production and expiry dates, certifications, warranty, material composition, and the ID of the complex where the product was made.
 
-## Usage
+The contract must be linked to `ComplexManagement` (`setComplexManagement`), and every product must reference an existing complex. [`deploySystem`](../README.md#deploy-the-full-system) sets this up.
 
-### Creating an Instance
+## Creating an instance
 
 ```typescript
-const productPassports = new ProductPassports(provider, privateKey, gweiBid);
+import { Config, ProductPassports } from '@digitalproductpassport/solidity-sdk';
+
+const passports = new ProductPassports(Config.createSigner(), {
+  address: '0x...', // defaults to PRODUCT_PASSPORT_ADDRESS
+  gweiBid: 3, // optional gas price in Gwei
+  logger: console, // optional, use silentLogger to disable logs
+});
 ```
 
-### Methods
+## Data types
 
-#### `deployProductPassport(initialOwner?: string): Promise<string>`
+```typescript
+interface ProductData {
+  description: string;
+  manuals: string[];
+  specifications: string[];
+  batchNumber: string;
+  productionDate: string;
+  expiryDate: string;
+  certifications: string;
+  warrantyInfo: string;
+  materialComposition: string[]; // addresses, must not be empty
+  complexId: string; // must reference an existing complex
+}
 
-Deploys a new ProductPassport contract.
+type ProductUpdate = Omit<ProductData, 'complexId'>;
 
-- **Parameters:**
-  - `initialOwner` (optional): The address of the initial owner of the contract.
-- **Returns:** The address of the deployed ProductPassport contract.
+interface ProductDetails {
+  product: ProductData;
+  origin: GeoLocation; // location of the product's complex
+}
+```
 
-#### `getProductPassport(productId: number): Promise<any>`
+## Methods
 
-Retrieves the product passport for a given product ID.
+| Method                                               | Description                                                                       |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `deployProductPassport(initialOwner?)`               | Deploys a new contract, connects the client to it, and returns its address.       |
+| `setComplexManagement(address)`                      | Links the ComplexManagement contract. Owner only.                                 |
+| `getComplexManagement()`                             | Returns the linked ComplexManagement address.                                     |
+| `createProduct(productId, product: ProductData)`     | Creates a passport. Reverts if the ID exists or the complex does not. Owner only. |
+| `updateProduct(productId, product: ProductUpdate)`   | Updates a passport. The complex is not changed. Owner only.                       |
+| `removeProduct(productId)`                           | Removes a passport. Owner only.                                                   |
+| `getProductDetails(productId)`                       | Returns `{ product, origin }`. Reverts if the product does not exist.             |
+| `getProduct(productId)`                              | Returns the `ProductData` only.                                                   |
+| `productExists(productId)`                           | Returns `true` if the product exists.                                             |
+| `owner()` / `transferOwnership(newOwner)`            | Ownership of the contract.                                                        |
+| `attach(address)` / `getAddress()` / `getContract()` | Connect to another contract, read the address, or get the TypeChain contract.     |
 
-- **Parameters:**
-  - `productId`: The ID of the product.
-- **Returns:** The product passport information.
-
-#### `setProductPassportInfo(contractAddress: string, productId: string, productDetails: any): Promise<any>`
-
-Sets the product passport information for a given product ID.
-
-- **Parameters:**
-  - `contractAddress`: The address of the ProductDetails contract.
-  - `productId`: The ID of the product.
-  - `productDetails`: An object containing product details.
-- **Returns:** The transaction receipt.
-
-#### `getProduct(productId: string): Promise<any>`
-
-Retrieves product information for a given product ID.
-
-- **Parameters:**
-  - `productId`: The ID of the product.
-- **Returns:** The product information.
-
-#### `setProductData(productId: number, productData: any): Promise<any>`
-
-Sets the product data for a given product ID.
-
-- **Parameters:**
-  - `productId`: The ID of the product.
-  - `productData`: An object containing product data.
-- **Returns:** The transaction receipt.
-
-#### `getProductData(productId: number): Promise<any>`
-
-Retrieves the product data for a given product ID.
-
-- **Parameters:**
-  - `productId`: The ID of the product.
-- **Returns:** The product data.
-
-#### `authorizeEntity(contractAddress: string, entityAddress: string): Promise<any>`
-
-Authorizes an entity to interact with the ProductPassport contract.
-
-- **Parameters:**
-  - `contractAddress`: The address of the ProductPassport contract.
-  - `entityAddress`: The address of the entity to be authorized.
-- **Returns:** The transaction receipt.
-
-## Configuration
-
-Configure the class using your `.env` file or environment variables. Make sure to include:
-
-- `PROVIDER_URL`
-- `PRIVATE_KEY`
-- `PRODUCT_PASSPORT_ADDRESS`
+Write methods return the `ContractTransactionReceipt`.
 
 ## Example
 
 ```typescript
-(async () => {
-  try {
-    const passportAddress = await productPassports.deployProductPassport();
-    console.log(`Deployed ProductPassport contract at: ${passportAddress}`);
-    
-    const productPassport = await productPassports.getProductPassport(123);
-    console.log('Product Passport:', productPassport);
-  } catch (error) {
-    console.error('Error:', error);
-  }
-})();
+await passports.createProduct(1, {
+  description: 'Brigadeiro',
+  manuals: ['QmManualHash'],
+  specifications: ['QmSpecHash'],
+  batchNumber: 'BRG-2026-001',
+  productionDate: '2026-06-20',
+  expiryDate: '2026-12-31',
+  certifications: 'FDA-5678',
+  warrantyInfo: 'Not applicable',
+  materialComposition: ['0x0000000000000000000000000000000000000001'],
+  complexId: 'COMPLEX-1',
+});
+
+const { product, origin } = await passports.getProductDetails(1);
+console.log(product.description, origin.latitude, origin.longitude);
+```
+
+`Config.loadProductDetails(filePath?)` reads a JSON file with the `ProductData` fields plus a `productId`, which can be passed straight to `createProduct`:
+
+```typescript
+const { productId, ...product } = Config.loadProductDetails(
+  'product-details.json',
+);
+await passports.createProduct(productId, product);
 ```
 
 ## License
 
-This project is licensed under the MIT License 
+MIT
