@@ -17,11 +17,17 @@ You need to set the following environment variables:
 
 ### Importing
 
-To use the utility functions, import them from the `utils` folder:
-
 ```typescript
-import { uploadJSONToPinata, uploadFileToPinata } from './utils/pinata';
+import {
+  uploadJSONToPinata,
+  uploadFileToPinata,
+  setPinataClient,
+} from '@digitalproductpassport/solidity-sdk';
 ```
+
+### `setPinataClient`
+
+By default, a Pinata client is created on first use from `PINATA_API_KEY` and `PINATA_SECRET_API_KEY`. Call `setPinataClient(client)` to use another client (for example one created with a JWT, or a test double), and `setPinataClient(null)` to go back to the default.
 
 ### `uploadJSONToPinata`
 

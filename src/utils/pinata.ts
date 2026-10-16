@@ -1,9 +1,41 @@
 import fs from 'fs';
-import pinataSDK from '@pinata/sdk';
-import Config from '../config';
+import pinataModule from '@pinata/sdk';
+import Config from '../config.js';
 
-// Initialize Pinata SDK with API keys from the configuration
-const pinata = new pinataSDK(Config.getPinataApiKey(), Config.getPinataSecretApiKey());
+// @pinata/sdk is CommonJS: at runtime the default import is the client class itself,
+// while its type declarations describe it as the `default` export.
+type PinataClientClass = (typeof pinataModule)['default'];
+const PinataClient: PinataClientClass =
+  (pinataModule as unknown as { default?: PinataClientClass }).default ??
+  (pinataModule as unknown as PinataClientClass);
+
+/**
+ * The subset of the Pinata client used by the SDK.
+ */
+export type PinataUploader = Pick<
+  InstanceType<PinataClientClass>,
+  'pinJSONToIPFS' | 'pinFileToIPFS'
+>;
+
+let pinata: PinataUploader | null = null;
+
+/**
+ * Replaces the Pinata client, for example to use other credentials or a test double.
+ * By default a client is created from `PINATA_API_KEY` and `PINATA_SECRET_API_KEY` on first use.
+ *
+ * @param client - The client to use, or `null` to go back to the default client.
+ */
+export const setPinataClient = (client: PinataUploader | null): void => {
+  pinata = client;
+};
+
+const getPinataClient = (): PinataUploader => {
+  pinata ??= new PinataClient(
+    Config.getPinataApiKey(),
+    Config.getPinataSecretApiKey(),
+  );
+  return pinata;
+};
 
 /**
  * Uploads JSON data to Pinata and returns the IPFS hash of the uploaded JSON.
@@ -12,14 +44,16 @@ const pinata = new pinataSDK(Config.getPinataApiKey(), Config.getPinataSecretApi
  * @returns A promise that resolves to the IPFS hash of the uploaded JSON data.
  * @throws Error if there is an issue with the upload process or communication with Pinata.
  */
-export const uploadJSONToPinata = async (jsonData: any): Promise<string> => {
+export const uploadJSONToPinata = async (
+  jsonData: unknown,
+): Promise<string> => {
   try {
-    // Upload JSON data to Pinata
-    const result = await pinata.pinJSONToIPFS(jsonData);
+    const result = await getPinataClient().pinJSONToIPFS(jsonData);
     return result.IpfsHash;
-  } catch (error: any) {
-    console.error(`Error uploading JSON to Pinata: ${error.message}`, error);
-    throw new Error(`Error uploading JSON to Pinata: ${error.message}`);
+  } catch (error) {
+    const { message } = error as Error;
+    console.error(`Error uploading JSON to Pinata: ${message}`);
+    throw new Error(`Error uploading JSON to Pinata: ${message}`);
   }
 };
 
@@ -32,14 +66,17 @@ export const uploadJSONToPinata = async (jsonData: any): Promise<string> => {
  */
 export const uploadFileToPinata = async (filePath: string): Promise<string> => {
   try {
-    // Create a readable stream from the file path
     const readableStreamForFile = fs.createReadStream(filePath);
-
-    // Upload the file to Pinata
-    const result = await pinata.pinFileToIPFS(readableStreamForFile);
+    const result = await getPinataClient().pinFileToIPFS(
+      readableStreamForFile,
+      {
+        pinataMetadata: { name: filePath.split(/[\\/]/).pop() || filePath },
+      },
+    );
     return result.IpfsHash;
-  } catch (error: any) {
-    console.error(`Error uploading file to Pinata: ${error.message}`, error);
-    throw new Error(`Error uploading file to Pinata: ${error.message}`);
+  } catch (error) {
+    const { message } = error as Error;
+    console.error(`Error uploading file to Pinata: ${message}`);
+    throw new Error(`Error uploading file to Pinata: ${message}`);
   }
 };
